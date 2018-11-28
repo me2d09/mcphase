@@ -112,7 +112,7 @@ end function
 
 end module FormfactorPreparation
 !----------------------------------------------------------------------------
-subroutine DataRead
+subroutine DataRead(temp_, g_, mode_, mst_, cefname_, parfilename_)
 !  Reads input-data from command line and input-files  
 !  The entries in the command line are:
 !  temperature T, coupling constant for the interaction 
@@ -127,11 +127,18 @@ subroutine DataRead
 !  the names of a file with q and omega values for which the scattering
 !  cross section should be calculated, and a file with  the atomic
 !  formfactor of the RE ion.  
+!
+!  command line input can be overwritten by optional parameter name
 
 use CommonData
 use MatrixElements
 use FormfactorPreparation
 implicit none
+!input parameters
+real, optional :: temp_, g_
+!f2py real :: temp_ = -1 
+integer, optional :: mode_, mst_
+character(len=30), optional :: cefname_, parfilename_
 !save
 integer :: i,j, k,kl,n,m, l, ii ,nn, cline, vv1(Mp),vv2(Mp), w, status_read 
 integer :: ww, type_of_contence,linetype(50), linenumber, nlines
@@ -148,21 +155,7 @@ character(len=100) :: line(50), tline(50), bb, zeile
 character(len=20) :: redata(14),re(14)
 character(len=100) :: number
 character(len=100) :: vector
-!  read information from command-line
-do i=1, iargc() ! number of entries in commandline
-    call getarg(i,arg) ! entries in command line
-    name(i)= arg
-end do
-nn=iargc() !number of entries
-!check if command line contains information 
-if (nn < 6) then
-  write(*,*) 'command line emptyor uncomplete.' 
-  write(*,*) 'It should contain temperature, electron-coupling constant,'
-  write(*,*) 'calculation-mode, output-mode,'
-  write(*,*) 'name of file with cef-data, name of parameterfile'
-  write(*,*) 'start again'
-  stop
-end if
+
 w1=0
 w2=0
 w3=0
@@ -173,35 +166,69 @@ w7=0
 w8=0
 w9=0
 w10=0
-if (nn>0) then
-  tempp=name(1)
-  read(tempp,*) x
-  temp=x
-  w1=1
-end if
-  if (nn>1) then
-  couplc=name(2)
-  read(couplc,*) g
-  w1=w1+1
-end if
-if (nn>2) then
-  mod=name(3)
-  read(mod,*) mode
-  w1=w1+1
-end if
-if (nn>3) then
-  mod=name(4)
-  read(mod,*) mst
-  w1=w1+1
-end if
-if (nn > 4 ) then
-  cefname=name(5)
-  w2=1
-end if
-if (nn > 5) then
-  parfilename=name(6)
-  w3=1
-end if
+
+if (present(temp_) .and. temp_ /= -1) then
+    temp = temp_
+    !copy all others
+    g = g_
+    mode = mode_
+    mst = mst_
+    cefname = cefname_
+    parfilename = parfilename_
+    !emulate normal reading
+    w1 = 4
+    w2 = 1
+    w3 = 1
+    nn = 6
+else
+    !  read information from command-line
+    do i=1, iargc() ! number of entries in commandline
+        call getarg(i,arg) ! entries in command line
+        name(i)= arg
+    end do
+    nn=iargc() !number of entries
+    !check if command line contains information 
+    if (nn < 6) then
+      write(*,*) 'command line emptyor uncomplete.' 
+      write(*,*) 'It should contain temperature, electron-coupling constant,'
+      write(*,*) 'calculation-mode, output-mode,'
+      write(*,*) 'name of file with cef-data, name of parameterfile'
+      write(*,*) 'start again'
+      stop
+    end if
+
+    if (nn>0) then
+      tempp=name(1)
+      read(tempp,*) x
+      temp=x
+      w1=1
+    end if
+    if (nn>1) then
+      couplc=name(2)
+      read(couplc,*) g
+      w1=w1+1
+    end if
+    if (nn>2) then
+      mod=name(3)
+      read(mod,*) mode
+      w1=w1+1
+    end if
+    if (nn>3) then
+      mod=name(4)
+      read(mod,*) mst
+      w1=w1+1
+    end if
+    if (nn > 4 ) then
+      cefname=name(5)
+      w2=1
+    end if
+    if (nn > 5) then
+      parfilename=name(6)
+      w3=1
+    end if
+endif
+
+
 if (w2==1) then
 ! Analyse file with cef-data
   open(11,file=cefname,action='read')
@@ -794,7 +821,6 @@ interface
    integer :: Ms,Mp
    end subroutine Matinv 
 end interface
-
 cut=cutoff/2
 do n=1,Ns
   do m=1,Ns
@@ -1648,11 +1674,131 @@ close(21)
 end subroutine OutputResults
 !--------------------------------------------
 
-program bft
- 
-call DataRead
-call MatrixElementCalculation
-call OutputResults
+    
+    
+    subroutine DataInput(temp_, g_, Ns_, gl_, En_, Ev_, cutoff_, elimits_, E_, k1_, k2_, Npoints_)
+        !  description to be done
 
-end program
+        use CommonData
+        use MatrixElements
+        use FormfactorPreparation
+        implicit none
+
+        !input parameters
+        real :: temp_, g_
+        !from CEF file
+        integer :: Ns_
+        real :: gl_
+        real :: En_(:)
+        complex :: Ev_(:,:)
+        !from bfk file
+        real :: cutoff_, E_
+        real :: elimits_(2)
+        real :: k1_(3), k2_(3)
+        integer :: Npoints_
+        
+        !copy all parameters to globals
+        temp = temp_
+        g = g_
+        Ns = Ns_
+        gl = gl_
+        En = En_
+        Ev = Ev_
+        cutoff = cutoff_
+        emin = elimits_(1)
+        emax = elimits_(2)
+        E = E_
+        k11 = k1_(1)
+        k12 = k1_(2)
+        k13 = k1_(3)
+        k21 = k2_(1)
+        k22 = k2_(2)
+        k23 = k2_(3)
+        Npoints = Npoints_
+        
+        !prepare variables
+        beta = 11.6/temp
+        gam= 2*Pi*g**2
+
+    
+    end subroutine DataInput
+    
+
+    subroutine GetScatteringFunction(vals, kappas, energies, ffs, ints, writeoutput)
+        use CommonData
+        use MatrixElements
+        use FormfactorPreparation
+        implicit none
+        
+
+        integer, intent(in) :: vals
+        real, intent(in)  :: kappas(vals,3)
+        real, intent(in)  :: energies(vals), ffs(vals)
+        logical,intent(in),optional :: writeoutput
+        !f2py logical :: writeoutput = 0
+        
+        real, intent(out) :: ints(vals)
+        
+        
+        logical :: dowrite
+        integer :: i
+
+        
+        !integer :: i,k,l,n,nn
+        !integer :: type,m, status_read
+        !real :: deltax,x,y,sum, s,st, sff(3,3), ss(3,3),qq(3)
+        !real :: dksv(3),dkv(3),dkapv(3),xksv(3),xkv(3),xkapv(3)
+        !real :: k0,kn,ks,ksn,kapn,kq,ksq,dcs,kmin,kmax,q1,q2,q3
+        !real :: k0k0, ksks,kv0(3), kvs(3), k0v(3)
+        ! the following quantities used here are defined in CommonData
+        ! outfilename (name of file with results), cefname (name of file 
+        ! with cef-data, strfilename (name of original file with formfactor)
+        ! 
+        !character(len=20) :: f(7),erg(7)
+
+        interface
+        real function ScatFunction(kapv,omega)
+            real :: kapv(3), omega
+        end function
+        subroutine SuscepComponents(z)
+            real :: z
+        end subroutine
+        end interface
+    
+
+        dowrite = .false.
+        if( present(writeoutput)) dowrite=writeoutput
+
+        if( dowrite) then
+            open(21,file='./results/bfk_scat.res',action='write')
+        
+            write(*,*) 'Results are written into ./results/bfk_scat.res and plot2.res'
+
+            write(21,*) '#results of program bfk'
+            write(21,*)'# calculation mode: 2 (scattering function)'
+            write(21,*) '# Calculation of scattering cross section for given set of '
+            write(21,'(A17,F6.2,A42,F6.2)') ' # temperature T=', temp, 'K, coupling &
+            with conduction electrons g= ', g 
+            write(21,'(A33,3G10.3)') ' # magnetisation <Jx>, <Jy>, <Jz> ', jav(1), jav(2), jav(3)
+            write(21,*) '# q (A^-1) energy loss (meV) cross section (1/meV,steradian)'
+            !open(23,file=scatfilename, action='read')
+        endif
+        
+        do i = 1, vals      
+            ints(i)=(r0*gl/2*ffs(i))**2/Pi*ScatFunction(kappas(i,:),energies(i))
+            if( dowrite) write(21,'(3G14.5)') kappas(i,3),energies(i),ints(i)
+        enddo
+    
+        if( dowrite) close(21)
+
+    end subroutine GetScatteringFunction
+
+    
+    
+    program bft
+        call DataRead
+        call MatrixElementCalculation
+        call OutputResults
+    end program
+    
 !-------------------------------------------------------------------
